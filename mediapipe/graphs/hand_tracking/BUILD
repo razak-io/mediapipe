@@ -98,6 +98,14 @@ mediapipe_binary_graph(
     deps = [":multi_hand_mobile_calculators"],
 )
 
+mediapipe_binary_graph(
+    name =  "multi_hand_landmark_detection_graph",
+    graph = "multi_hand_landmark_detection.pbtxt",
+    output_name = "multi_hand_landmark_detection.binarypb",
+    deps = [":multi_hand_mobile_calculators"],
+)
+
+
 cc_library(
     name = "detection_mobile_calculators",
     deps = [

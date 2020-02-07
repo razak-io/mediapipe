@@ -1,0 +1,78 @@
+# Used in the examples in
+# mediapipe/examples/android/src/java/com/mediapipe/apps/multihandtrackinggpu.
+
+# Images coming into and out of the graph.
+input_stream: "input_video"
+output_stream: "output_video"
+
+# Throttles the images flowing downstream for flow control. It passes through
+# the very first incoming image unaltered, and waits for downstream nodes
+# (calculators and subgraphs) in the graph to finish their tasks before it
+# passes through another image. All images that come in while waiting are
+# dropped, limiting the number of in-flight images in most part of the graph to
+# 1. This prevents the downstream nodes from queuing up incoming images and data
+# excessively, which leads to increased latency and memory usage, unwanted in
+# real-time mobile applications. It also eliminates unnecessarily computation,
+# e.g., the output produced by a node may get dropped downstream if the
+# subsequent nodes are still busy processing previous inputs.
+node {
+  calculator: "FlowLimiterCalculator"
+  input_stream: "input_video"
+  input_stream: "FINISHED:multi_hand_rects"
+  input_stream_info: {
+    tag_index: "FINISHED"
+    back_edge: true
+  }
+  output_stream: "throttled_input_video"
+}
+
+# Determines if an input vector of NormalizedRect has a size greater than or
+# equal to the provided min_size.
+node {
+  calculator: "NormalizedRectVectorHasMinSizeCalculator"
+  input_stream: "ITERABLE:prev_multi_hand_rects_from_landmarks"
+  output_stream: "prev_has_enough_hands"
+  node_options: {
+    [type.googleapis.com/mediapipe.CollectionHasMinSizeCalculatorOptions] {
+      # This value can be changed to support tracking arbitrary number of hands.
+      # Please also remember to modify max_vec_size in
+      # ClipVectorSizeCalculatorOptions in
+      # mediapipe/graphs/hand_tracking/subgraphs/multi_hand_detection_gpu.pbtxt
+      min_size: 2
+    }
+  }
+}
+
+# Drops the incoming image if the previous frame had at least N hands.
+# Otherwise, passes the incoming image through to trigger a new round of hand
+# detection in MultiHandDetectionSubgraph.
+node {
+  calculator: "GateCalculator"
+  input_stream: "throttled_input_video"
+  input_stream: "DISALLOW:prev_has_enough_hands"
+  output_stream: "multi_hand_detection_input_video"
+  node_options: {
+    [type.googleapis.com/mediapipe.GateCalculatorOptions] {
+      empty_packets_as_allow: true
+    }
+  }
+}
+
+# Subgraph that detections hands (see multi_hand_detection_gpu.pbtxt).
+node {
+  calculator: "MultiHandDetectionSubgraph"
+  input_stream: "multi_hand_detection_input_video"
+  output_stream: "DETECTIONS:multi_palm_detections"
+  output_stream: "NORM_RECTS:multi_palm_rects"
+}
+
+# Subgraph that localizes hand landmarks for multiple hands (see
+# multi_hand_landmark.pbtxt).
+#node {
+#  calculator: "MultiHandLandmarkSubgraph"
+#  input_stream: "IMAGE:throttled_input_video"
+#  input_stream: "NORM_RECTS:multi_hand_rects"
+#  output_stream: "LANDMARKS:multi_hand_landmarks"
+#  output_stream: "NORM_RECTS:multi_hand_rects_from_landmarks"
+#}
+

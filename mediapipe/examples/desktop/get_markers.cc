@@ -1,21 +1,4 @@
-// Copyright 2019 The MediaPipe Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// An example of sending OpenCV webcam frames into a MediaPipe graph.
-// This example requires a linux computer and a GPU with EGL support drivers.
 #include <cstdlib>
-
 #include "mediapipe/framework/calculator_framework.h"
 #include "mediapipe/framework/formats/image_frame.h"
 #include "mediapipe/framework/formats/image_frame_opencv.h"
@@ -30,9 +13,8 @@
 #include "mediapipe/gpu/gpu_buffer.h"
 #include "mediapipe/gpu/gpu_shared_data_internal.h"
 
-constexpr char kInputStream[] = "input_video";
-constexpr char kOutputStream[] = "output_video";
-constexpr char kWindowName[] = "MediaPipe";
+const char kInputStream[] = "input_video";
+const char kOutputStream[] = "output_video";
 
 DEFINE_string(
     calculator_graph_config_file, "",
@@ -44,7 +26,7 @@ DEFINE_string(output_video_path, "",
               "Full path of where to save result (.mp4 only). "
               "If not provided, show result in a window.");
 
-::mediapipe::Status RunMPPGraph() {
+::mediapipe::Status run_multiple(int cam, const char kWindowName[]){
   std::string calculator_graph_config_contents;
   MP_RETURN_IF_ERROR(mediapipe::file::GetContents(
       FLAGS_calculator_graph_config_file, &calculator_graph_config_contents));
@@ -70,7 +52,7 @@ DEFINE_string(output_video_path, "",
   if (load_video) {
     capture.open(FLAGS_input_video_path);
   } else {
-    capture.open(1);
+    capture.open(cam);
   }
   RET_CHECK(capture.isOpened());
 
@@ -181,8 +163,10 @@ DEFINE_string(output_video_path, "",
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  ::mediapipe::Status run_status = RunMPPGraph();
-  if (!run_status.ok()) {
+  ::mediapipe::Status run_status = run_multiple(1,"MediaPipe");
+  ::mediapipe::Status run_status_1 = run_multiple(0, "MediaPipe 2");//, "MediaPipe_1", "output_video_1");
+  //RunMPPGraph();
+  if (!run_status.ok() || !run_status.ok()) {
     LOG(ERROR) << "Failed to run the graph: " << run_status.message();
     return EXIT_FAILURE;
   } else {

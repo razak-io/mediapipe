@@ -30,8 +30,15 @@
 #include "mediapipe/gpu/gpu_buffer.h"
 #include "mediapipe/gpu/gpu_shared_data_internal.h"
 
+//Take stream from /mediapipe/graphs/hand_tracking/hand_detection_desktop_live.pbtxt
+// RendererSubgraph - LANDMARKS:hand_landmarks
+#include "mediapipe/calculators/util/landmarks_to_render_data_calculator.pb.h"
+#include "mediapipe/framework/formats/landmark.pb.h"
+
+// input and output streams to be used/retrieved by calculators
 constexpr char kInputStream[] = "input_video";
 constexpr char kOutputStream[] = "output_video";
+constexpr char kLandmarksStream[] = "hand_landmarks";
 constexpr char kWindowName[] = "MediaPipe";
 
 DEFINE_string(
@@ -88,7 +95,12 @@ DEFINE_string(output_video_path, "",
   LOG(INFO) << "Start running the calculator graph.";
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller,
                    graph.AddOutputStreamPoller(kOutputStream));
+
+// hand landmarks stream
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller_landmark,
+            graph.AddOutputStreamPoller(kLandmarksStream));
   MP_RETURN_IF_ERROR(graph.StartRun({}));
+
 
   LOG(INFO) << "Start grabbing and processing frames.";
   bool grab_frames = true;
@@ -130,8 +142,12 @@ DEFINE_string(output_video_path, "",
 
     // Get the graph result packet, or stop if that fails.
     mediapipe::Packet packet;
+    mediapipe::Packet landmark_packet;
     if (!poller.Next(&packet)) break;
+	if (!poller_landmark.Next(&landmark_packet)) break;
+
     std::unique_ptr<mediapipe::ImageFrame> output_frame;
+	auto& output_landmarks = landmark_packet.Get<mediapipe::NormalizedLandmarkList>();
 
     // Convert GpuBuffer to ImageFrame.
     MP_RETURN_IF_ERROR(gpu_helper.RunInGlContext(
@@ -169,6 +185,14 @@ DEFINE_string(output_video_path, "",
       // Press any key to exit.
       const int pressed_key = cv::waitKey(5);
       if (pressed_key >= 0 && pressed_key != 255) grab_frames = false;
+	  for (int i = 0; i < output_landmarks.landmark_size(); ++i) {
+			  const mediapipe::NormalizedLandmark& landmark = output_landmarks.landmark(i);
+			  //LOG(INFO) << "Wrist " << j << "Point: " << i;
+			  LOG(INFO) << "x coordinate: " << landmark.x(); 
+			  LOG(INFO) << "y coordinate: " << landmark.y(); 
+			  LOG(INFO) << "z coordinate: " << landmark.z(); 
+	   }
+
     }
   }
 

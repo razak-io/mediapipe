@@ -1,21 +1,5 @@
-// Copyright 2019 The MediaPipe Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// An example of sending OpenCV webcam frames into a MediaPipe graph.
-// This example requires a linux computer and a GPU with EGL support drivers.
 #include <cstdlib>
-
+#include <pthread.h>
 #include "mediapipe/framework/calculator_framework.h"
 #include "mediapipe/framework/formats/image_frame.h"
 #include "mediapipe/framework/formats/image_frame_opencv.h"
@@ -29,10 +13,16 @@
 #include "mediapipe/gpu/gl_calculator_helper.h"
 #include "mediapipe/gpu/gpu_buffer.h"
 #include "mediapipe/gpu/gpu_shared_data_internal.h"
+#include <iostream>
+#include <thread>
 
-constexpr char kInputStream[] = "input_video";
-constexpr char kOutputStream[] = "output_video";
-constexpr char kWindowName[] = "MediaPipe";
+using namespace std;
+using namespace cv;
+
+const char kInputStream[] = "input_video";
+const char kOutputStream[] = "output_video";
+const char kOutputStream_[] = "output_video";
+const char kWindowName[] = "MediaPipe";
 
 DEFINE_string(
     calculator_graph_config_file, "",
@@ -44,7 +34,7 @@ DEFINE_string(output_video_path, "",
               "Full path of where to save result (.mp4 only). "
               "If not provided, show result in a window.");
 
-::mediapipe::Status RunMPPGraph() {
+::mediapipe::Status run_multiple(int cam){
   std::string calculator_graph_config_contents;
   MP_RETURN_IF_ERROR(mediapipe::file::GetContents(
       FLAGS_calculator_graph_config_file, &calculator_graph_config_contents));
@@ -70,14 +60,14 @@ DEFINE_string(output_video_path, "",
   if (load_video) {
     capture.open(FLAGS_input_video_path);
   } else {
-    capture.open(1);
+    capture.open(cam);
   }
   RET_CHECK(capture.isOpened());
 
   cv::VideoWriter writer;
   const bool save_video = !FLAGS_output_video_path.empty();
   if (!save_video) {
-    cv::namedWindow(kWindowName, /*flags=WINDOW_AUTOSIZE*/ 1);
+    //cv::namedWindow(kWindowName, /*flags=WINDOW_AUTOSIZE*/ 1);
 #if (CV_MAJOR_VERSION >= 3) && (CV_MINOR_VERSION >= 2)
     capture.set(cv::CAP_PROP_FRAME_WIDTH, 640);
     capture.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
@@ -88,6 +78,7 @@ DEFINE_string(output_video_path, "",
   LOG(INFO) << "Start running the calculator graph.";
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller,
                    graph.AddOutputStreamPoller(kOutputStream));
+
   MP_RETURN_IF_ERROR(graph.StartRun({}));
 
   LOG(INFO) << "Start grabbing and processing frames.";
@@ -133,6 +124,7 @@ DEFINE_string(output_video_path, "",
     if (!poller.Next(&packet)) break;
     std::unique_ptr<mediapipe::ImageFrame> output_frame;
 
+	std::unique_ptr<cv::Mat> val;
     // Convert GpuBuffer to ImageFrame.
     MP_RETURN_IF_ERROR(gpu_helper.RunInGlContext(
         [&packet, &output_frame, &gpu_helper]() -> ::mediapipe::Status {
@@ -155,6 +147,9 @@ DEFINE_string(output_video_path, "",
     // Convert back to opencv for display or saving.
     cv::Mat output_frame_mat = mediapipe::formats::MatView(output_frame.get());
     cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
+	string window_name = cam+") My Camera Feed ";
+	string thresh_window_name = cam+") Thresh Window ";
+	cv::namedWindow(window_name);
     if (save_video) {
       if (!writer.isOpened()) {
         LOG(INFO) << "Prepare video writer.";
@@ -165,7 +160,24 @@ DEFINE_string(output_video_path, "",
       }
       writer.write(output_frame_mat);
     } else {
-      cv::imshow(kWindowName, output_frame_mat);
+	  cv::imshow(window_name, output_frame_mat);
+	  cv::Mat HSV;
+	  cv::Mat threshold;
+	  cv::cvtColor(output_frame_mat,HSV,cv::COLOR_BGR2HSV);
+	  cv::Mat flag_3, flag_2, flag_1;
+	  cv::inRange(HSV,cv::Scalar(45, 100, 100), cv::Scalar(75, 255, 255),flag_1);
+	  cv::inRange(HSV,cv::Scalar(170, 100, 100), cv::Scalar(180, 255, 255),flag_2);
+	  cv::inRange(HSV,cv::Scalar(0, 100, 100), cv::Scalar(10, 255, 255),flag_3);
+
+	  threshold = flag_2|flag_3;// | flag_2;
+
+	  std::vector<std::vector<cv::Point> > locations;   // output, locations of non-zero pixels
+	  cv::dilate(threshold, threshold, cv::Mat(), Point(-1, -1), 2, 0, 0); 
+	  cv::findContours( threshold, locations, cv::RETR_LIST, cv::CHAIN_APPROX_NONE );
+	  //cv::findNonZero(threshold, locations);
+	  cv::imshow(thresh_window_name, threshold);
+	  cout << "First Locations: " << locations.size() << endl;
+	
       // Press any key to exit.
       const int pressed_key = cv::waitKey(5);
       if (pressed_key >= 0 && pressed_key != 255) grab_frames = false;
@@ -181,12 +193,18 @@ DEFINE_string(output_video_path, "",
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  ::mediapipe::Status run_status = RunMPPGraph();
-  if (!run_status.ok()) {
+  thread fun_1(run_multiple,1);
+  thread fun_2(run_multiple,2);
+  fun_1.join();
+  fun_2.join();
+  /*::mediapipe::Status run_status = run_multiple(1,"MediaPipe");
+  ::mediapipe::Status run_status_1 = run_multiple(0, "MediaPipe 2");//, "MediaPipe_1", "output_video_1");
+  //RunMPPGraph();
+  if (!run_status.ok() || !run_status.ok()) {
     LOG(ERROR) << "Failed to run the graph: " << run_status.message();
     return EXIT_FAILURE;
   } else {
     LOG(INFO) << "Success!";
-  }
+  }*/
   return EXIT_SUCCESS;
 }

@@ -32,6 +32,14 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "multi_hand_tracking_cpu_out",
+    deps = [
+        "//mediapipe/examples/desktop:demo_run_graph_main_out_multi",
+        "//mediapipe/graphs/hand_tracking:multi_hand_desktop_tflite_calculators",
+    ],
+)
+
 # Linux only
 cc_binary(
     name = "multi_hand_tracking_gpu",
@@ -40,3 +48,20 @@ cc_binary(
         "//mediapipe/graphs/hand_tracking:multi_hand_mobile_calculators",
     ],
 )
+
+cc_binary(
+    name = "multi_hand_tracking_gpu_out",
+    deps = [
+        "//mediapipe/examples/desktop:demo_run_graph_main_gpu_out_multi",
+        "//mediapipe/graphs/hand_tracking:multi_hand_mobile_calculators",
+    ],
+)
+
+cc_binary(
+    name = "multi_vid_hand_tracking_gpu",
+    deps = [
+        "//mediapipe/examples/desktop:multi_vid_graph_main",
+        "//mediapipe/graphs/hand_tracking:multi_hand_mobile_calculators",
+    ],
+)
+
