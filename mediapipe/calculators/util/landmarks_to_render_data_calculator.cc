@@ -224,6 +224,36 @@ REGISTER_CALCULATOR(LandmarksToRenderDataCalculator);
       landmark_data->set_normalized(true);
       landmark_data->set_x(landmark.x());
       landmark_data->set_y(landmark.y());
+
+
+      const unsigned char lmIndex = &landmark - &landmarks.landmark(0);
+      auto* landmarks_text_render = render_data->add_render_annotations();
+      auto* landmark_text =
+      landmarks_text_render->mutable_text();
+      std::string dispText = "LM:";
+      dispText.append(std::to_string(i));
+
+	  //dispText.append("/n X: ");
+      //dispText.append(std::to_string(landmark.x()));
+
+	  //dispText.append("/n Y: ");
+      //dispText.append(std::to_string(landmark.y()));
+
+      landmark_text->set_normalized(true);
+      landmark_text->set_display_text(dispText); 
+      landmark_text->set_font_height(0.02);
+      landmark_text->set_baseline(landmark.y());
+      landmark_text->set_left(landmark.x() + 0.02);
+      landmarks_text_render->mutable_color()->set_r(0);
+      landmarks_text_render->mutable_color()->set_g(0);
+      landmarks_text_render->mutable_color()-> set_b(255);
+      landmarks_text_render->set_scene_tag(kLandmarkLabel);
+
+      /*if((&landmark - &landmarks[0])==0){
+        std::cout  << "X:" << std::to_string(landmark.x()) << " - " << landmark_data->x() << "\n";
+      }*/
+
+
     }
     if (visualize_depth) {
       AddConnectionsWithDepth<NormalizedLandmarkList>(

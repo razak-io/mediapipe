@@ -61,3 +61,14 @@ cc_binary(
 		"//mediapipe/gpu:image_frame_to_gpu_buffer_calculator",	
     ],
 )
+
+# Linux only
+cc_binary(
+    name = "hand_tracking_gpu_out_thread",
+    deps = [
+        "//mediapipe/examples/desktop:demo_run_graph_main_gpu_out_thread",
+        "//mediapipe/graphs/hand_tracking:mobile_calculators",
+		"//mediapipe/gpu:gpu_buffer_to_image_frame_calculator",
+		"//mediapipe/gpu:image_frame_to_gpu_buffer_calculator",	
+    ],
+)

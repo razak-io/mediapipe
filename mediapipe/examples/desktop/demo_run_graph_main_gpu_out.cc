@@ -51,7 +51,7 @@ DEFINE_string(output_video_path, "",
               "Full path of where to save result (.mp4 only). "
               "If not provided, show result in a window.");
 
-::mediapipe::Status RunMPPGraph() {
+::mediapipe::Status RunMPPGraph(int index) {
   std::string calculator_graph_config_contents;
   MP_RETURN_IF_ERROR(mediapipe::file::GetContents(
       FLAGS_calculator_graph_config_file, &calculator_graph_config_contents));
@@ -108,12 +108,15 @@ DEFINE_string(output_video_path, "",
     // Capture opencv camera or video frame.
     cv::Mat camera_frame_raw;
     capture >> camera_frame_raw;
+	camera_frame_raw = camera_frame_raw(cv::Rect(index, 0, 640, 480));
     if (camera_frame_raw.empty()) break;  // End of video.
     cv::Mat camera_frame;
     cv::cvtColor(camera_frame_raw, camera_frame, cv::COLOR_BGR2RGB);
     if (!load_video) {
       cv::flip(camera_frame, camera_frame, /*flipcode=HORIZONTAL*/ 1);
     }
+	//std::cout << "Image Width: "  << camera_frame.cols  << std::endl;
+	//std::cout << "Image Height: " << camera_frame.rows << std::endl;
 
     // Wrap Mat into an ImageFrame.
     auto input_frame = absl::make_unique<mediapipe::ImageFrame>(
@@ -121,6 +124,8 @@ DEFINE_string(output_video_path, "",
         mediapipe::ImageFrame::kGlDefaultAlignmentBoundary);
     cv::Mat input_frame_mat = mediapipe::formats::MatView(input_frame.get());
     camera_frame.copyTo(input_frame_mat);
+
+
 
     // Prepare and add graph input packet.
     size_t frame_timestamp_us =
@@ -181,16 +186,24 @@ DEFINE_string(output_video_path, "",
       }
       writer.write(output_frame_mat);
     } else {
-      cv::imshow(kWindowName, output_frame_mat);
+
+		std::ostringstream lstringStream, rstringStream;
+
+		lstringStream << kWindowName << " "  << index; 
+		//rstringStream << kWindowName << "right" << i << ".jpg";
+
+		cv::String left  = lstringStream.str();
+      cv::imshow(left, output_frame_mat);
       // Press any key to exit.
       const int pressed_key = cv::waitKey(5);
       if (pressed_key >= 0 && pressed_key != 255) grab_frames = false;
 	  for (int i = 0; i < output_landmarks.landmark_size(); ++i) {
 			  const mediapipe::NormalizedLandmark& landmark = output_landmarks.landmark(i);
 			  //LOG(INFO) << "Wrist " << j << "Point: " << i;
-			  LOG(INFO) << "x coordinate: " << landmark.x(); 
-			  LOG(INFO) << "y coordinate: " << landmark.y(); 
-			  LOG(INFO) << "z coordinate: " << landmark.z(); 
+			  LOG(INFO) << i << ": "<<"x: " << landmark.x() * camera_frame.cols 
+			  << " y: " << landmark.y() * camera_frame.rows << " z: " << landmark.z(); 
+			 // LOG(INFO)  
+			  //LOG(INFO) 
 	   }
 
     }
@@ -205,7 +218,7 @@ DEFINE_string(output_video_path, "",
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  ::mediapipe::Status run_status = RunMPPGraph();
+  ::mediapipe::Status run_status = RunMPPGraph(640);
   if (!run_status.ok()) {
     LOG(ERROR) << "Failed to run the graph: " << run_status.message();
     return EXIT_FAILURE;
